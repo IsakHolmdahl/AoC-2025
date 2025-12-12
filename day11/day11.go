@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 )
 
@@ -23,5 +24,24 @@ func part1(file string) {
 		parts := strings.Split(s, " ")
 		nodes[i] = node{strings.Trim(parts[0], ":"), parts[1:]}
 	}
-	fmt.Println(nodes)
+
+}
+
+func dfsSearch(nodesGraph []node, currentNode node, visitedNodes []string, foundExits int) int {
+	res := 0
+	for i, n := range currentNode.outputs {
+		if slices.Contains(visitedNodes, n) {
+			continue
+		} else if n == "out" {
+			res++
+		} else {
+			sliceCopy := make([]string, 0)
+			copy(sliceCopy, visitedNodes)
+			sliceCopy = append(sliceCopy, n)
+			destinationNode := nodesGraph[slices.IndexFunc(nodesGraph, func(v node) bool {
+				return v.name == n
+			})]
+			res += dfsSearch([]node)
+		}
+	}
 }

@@ -130,6 +130,7 @@ func part2(file string) {
 	firstPoint := linkedPos{pos{xFirstPoint, yFirstPoint}, pos{-1, -1}}
 	points := []linkedPos{firstPoint}
 	verticallyJoinedPoints := make([]linkedPos, 0)
+	horizontallyJoinedPoints := make([]linkedPos, 0)
 	lastVisitedPoint := firstPoint.this
 	for _, row := range lines[1:] {
 		if row == "" {
@@ -143,11 +144,17 @@ func part2(file string) {
 		if coord.x == lastVisitedPoint.x {
 			verticallyJoinedPoints = append(verticallyJoinedPoints, linkedPos{coord, lastVisitedPoint})
 		}
+		if coord.y == lastVisitedPoint.y {
+			horizontallyJoinedPoints = append(horizontallyJoinedPoints, linkedPos{coord, lastVisitedPoint})
+		}
 		lastVisitedPoint = coord
 	}
 	points[0].linked = lastVisitedPoint
 	if points[0].this.x == points[0].linked.x {
 		verticallyJoinedPoints = append(verticallyJoinedPoints, points[0])
+	}
+	if points[0].this.y == points[0].linked.y {
+		horizontallyJoinedPoints = append(horizontallyJoinedPoints, points[0])
 	}
 
 	slices.SortFunc(verticallyJoinedPoints, func(a, b linkedPos) int {
@@ -158,15 +165,19 @@ func part2(file string) {
 		}
 	})
 
+	slices.SortFunc(horizontallyJoinedPoints, func(a, b linkedPos) int {
+		if a.this.y < b.this.y {
+			return -1
+		} else {
+			return 1
+		}
+	})
+
 	maxArea := 0
 	for i, point := range points[:len(points)-1] {
 		for _, oppositePoint := range points[i+1:] {
-			if point.this.x == oppositePoint.this.x || point.this.y == oppositePoint.this.y {
-				continue
-			}
 			upperLeft := pos{intMin(point.this.x, oppositePoint.this.x), intMin(point.this.y, oppositePoint.this.y)}
 			lowerRight := pos{intMax(point.this.x, oppositePoint.this.x), intMax(point.this.y, oppositePoint.this.y)}
-			middle := pos{(lowerRight.x - upperLeft.x) / 2, (lowerRight.y - upperLeft.y) / 2}
 			area := (intAbs(point.this.x-oppositePoint.this.x) + 1) * (intAbs(point.this.y-oppositePoint.this.y) + 1)
 			nothingInside := true
 			for _, p := range points {
@@ -178,36 +189,35 @@ func part2(file string) {
 			if !nothingInside {
 				continue
 			}
-			isInsideVerticalUpperLeft := false
-			isInsideVerticalLowerLeft := false
-			isInsideVerticalUpperRight := false
-			isInsideVerticalLowerRight := false
-			isInsideMiddle := false
-			for _, vPair := range verticallyJoinedPoints {
-				if vPair.this.x > upperLeft.x+1 {
-					if intMin(vPair.this.y, vPair.linked.y) <= upperLeft.y+1 && intMax(vPair.this.y, vPair.linked.y) >= upperLeft.y+1 {
-						isInsideVerticalUpperLeft = !isInsideVerticalUpperLeft
-					}
-					if intMin(vPair.this.y, vPair.linked.y) <= lowerRight.y-1 && intMax(vPair.this.y, vPair.linked.y) >= lowerRight.y-1 {
-						isInsideVerticalLowerLeft = !isInsideVerticalLowerLeft
-					}
+			isInside := true
+			// fmt.Println("New points")
+			// fmt.Println(point.this)
+			// fmt.Println(oppositePoint.this)
+			// fmt.Println(upperLeft)
+			// fmt.Println(lowerRight)
+			m := float64((lowerRight.y - upperLeft.y)) / float64((lowerRight.x - upperLeft.x))
+			b := float64(upperLeft.y+1) - (float64((upperLeft.x + 1)) * m)
+			for x := range lowerRight.x - upperLeft.x - 1 {
+				// fmt.Println(pos{upperLeft.x + x + 1, int((m * float64(upperLeft.x+x+1)) + b)})
+				// fmt.Println(pos{lowerRight.x - x - 1, int((m * float64(lowerRight.x-x-1)) + b)})
+				if rayTraceVertical(pos{upperLeft.x + x + 1, int((m * float64(upperLeft.x+x+1)) + b)}, verticallyJoinedPoints) == false {
+					isInside = false
+					break
 				}
-				if vPair.this.x > lowerRight.x-1 {
-					if intMin(vPair.this.y, vPair.linked.y) <= upperLeft.y+1 && intMax(vPair.this.y, vPair.linked.y) >= upperLeft.y+1 {
-						isInsideVerticalUpperRight = !isInsideVerticalUpperRight
-					}
-					if intMin(vPair.this.y, vPair.linked.y) <= lowerRight.y-1 && intMax(vPair.this.y, vPair.linked.y) >= lowerRight.y-1 {
-						isInsideVerticalLowerRight = !isInsideVerticalLowerRight
-					}
+				if rayTraceVertical(pos{lowerRight.x - x - 1, int((m * float64(lowerRight.x-x-1)) + b)}, verticallyJoinedPoints) == false {
+					isInside = false
+					break
 				}
-				if vPair.this.x > middle.x {
-					if intMin(vPair.this.y, vPair.linked.y) <= middle.y && intMax(vPair.this.y, vPair.linked.y) >= middle.y {
-						isInsideMiddle = !isInsideMiddle
-					}
+				if rayTraceHorizontal(pos{upperLeft.x + x + 1, int((m * float64(upperLeft.x+x+1)) + b)}, horizontallyJoinedPoints) == false {
+					isInside = false
+					break
 				}
-
+				if rayTraceHorizontal(pos{lowerRight.x - x - 1, int((m * float64(lowerRight.x-x-1)) + b)}, horizontallyJoinedPoints) == false {
+					isInside = false
+					break
+				}
 			}
-			if isInsideVerticalUpperLeft && isInsideVerticalLowerLeft && isInsideVerticalUpperRight && isInsideVerticalLowerRight && isInsideMiddle && area > maxArea {
+			if isInside && area > maxArea {
 				fmt.Println(point)
 				fmt.Println(oppositePoint)
 				maxArea = area
@@ -219,39 +229,25 @@ func part2(file string) {
 	fmt.Println(maxArea)
 }
 
-func rayTrace(borderMap [][]string, cornerOne, cornerTwo linkedPos) bool {
-	areaCoords := getAreaPoints(cornerOne.this, cornerTwo.this)
-	for _, row := range areaCoords {
-		for _, coord := range row {
-			var isInside bool
-			if borderMap[coord.y][coord.x] == "|" || borderMap[coord.y][coord.x] == "-" || (borderMap[coord.y][coord.x] == "@" && borderMap[coord.y][coord.x+1] == "-") {
-				isInside = true
-			} else {
-				isInside = false
-			}
-			for x := range len(borderMap[1]) - coord.x - 1 {
-				if borderMap[coord.y][coord.x+x+1] == "|" || borderMap[coord.y][coord.x+x+1] == "@" {
-					isInside = !isInside
-				}
-			}
-			if isInside == false {
-				// fmt.Println(areaCoords)
-				return false
+func rayTraceVertical(point pos, verticalLines []linkedPos) bool {
+	res := false
+	for _, vPair := range verticalLines {
+		if vPair.this.x > point.x {
+			if intMin(vPair.this.y, vPair.linked.y) < point.y && intMax(vPair.this.y, vPair.linked.y) > point.y {
+				res = !res
 			}
 		}
 	}
-	return true
+	return res
 }
 
-func getAreaPoints(cornerOne, cornerTwo pos) [][]pos {
-	upperLeftCorner := pos{intMin(cornerOne.x, cornerTwo.x), intMin(cornerOne.y, cornerTwo.y)}
-	bottomRightCorner := pos{intMax(cornerOne.x, cornerTwo.x), intMax(cornerOne.y, cornerTwo.y)}
-	res := make([][]pos, intAbs(upperLeftCorner.y-bottomRightCorner.y)+1)
-
-	for i := range res {
-		res[i] = make([]pos, intAbs(upperLeftCorner.x-bottomRightCorner.x)+1)
-		for j := range res[i] {
-			res[i][j] = pos{upperLeftCorner.x + j, upperLeftCorner.y + i}
+func rayTraceHorizontal(point pos, horizontalLines []linkedPos) bool {
+	res := false
+	for _, vPair := range horizontalLines {
+		if vPair.this.y > point.y {
+			if intMin(vPair.this.x, vPair.linked.x) < point.x && intMax(vPair.this.x, vPair.linked.x) > point.x {
+				res = !res
+			}
 		}
 	}
 	return res
