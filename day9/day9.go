@@ -121,118 +121,102 @@ type linkedPos struct {
 	linked pos
 }
 
-// Go trough each point
-// When past point 2, check area with the point two steps back.
-// Check that no other point is in that area
-
-// func part2Redo(file string) {
-// 	input, _ := os.ReadFile(file)
-// 	lines := strings.Split(string(input), "\n")
-// 	points := make([][]pos, 0)
-// 	for i, row := range lines {
-// 		values := strings.Split(row, ",")
-// 		x, _ := strconv.Atoi(values[0])
-// 		y, _ := strconv.Atoi(values[1])
-// 		coord := pos{x, y}
-// 		points = append(points, linkedPos{coord, lastVisitedPoint})
-// 		lastVisitedPoint = coord
-// 	}
-// }
-
 func part2(file string) {
 	input, _ := os.ReadFile(file)
 	lines := strings.Split(string(input), "\n")
 	valuesFirstPoint := strings.Split(lines[0], ",")
-	valuesLastPoint := strings.Split(lines[len(lines)-2], ",")
 	xFirstPoint, _ := strconv.Atoi(valuesFirstPoint[0])
 	yFirstPoint, _ := strconv.Atoi(valuesFirstPoint[1])
-	xLastPoint, _ := strconv.Atoi(valuesLastPoint[0])
-	yLastPoint, _ := strconv.Atoi(valuesLastPoint[1])
-	firstPoint, lastPoint := linkedPos{pos{xFirstPoint, yFirstPoint}, pos{-1, -1}}, linkedPos{pos{xLastPoint, yLastPoint}, pos{-1, -1}}
-	gridX, gridY := intMax(firstPoint.this.x, lastPoint.this.x), intMax(firstPoint.this.y, lastPoint.this.y)
-	firstPoint.linked = lastPoint.this
-	points := []linkedPos{firstPoint, lastPoint}
+	firstPoint := linkedPos{pos{xFirstPoint, yFirstPoint}, pos{-1, -1}}
+	points := []linkedPos{firstPoint}
+	verticallyJoinedPoints := make([]linkedPos, 0)
 	lastVisitedPoint := firstPoint.this
-	for _, row := range lines[1 : len(lines)-2] {
+	for _, row := range lines[1:] {
+		if row == "" {
+			continue
+		}
 		values := strings.Split(row, ",")
 		x, _ := strconv.Atoi(values[0])
 		y, _ := strconv.Atoi(values[1])
-		if x > gridX {
-			gridX = x
-		}
-		if y > gridY {
-			gridY = y
-		}
 		coord := pos{x, y}
 		points = append(points, linkedPos{coord, lastVisitedPoint})
+		if coord.x == lastVisitedPoint.x {
+			verticallyJoinedPoints = append(verticallyJoinedPoints, linkedPos{coord, lastVisitedPoint})
+		}
 		lastVisitedPoint = coord
 	}
-	points[1].linked = lastVisitedPoint
-
-	borderMap := make([][]string, gridY+1)
-
-	for i := range gridY + 1 {
-		borderMap[i] = make([]string, gridX+1)
+	points[0].linked = lastVisitedPoint
+	if points[0].this.x == points[0].linked.x {
+		verticallyJoinedPoints = append(verticallyJoinedPoints, points[0])
 	}
 
-	fmt.Println(gridX)
-	fmt.Println(gridY)
-	for y, row := range borderMap {
-		for x := range row {
-			for _, point := range points {
-				if point.this.x == x && point.this.y == y {
-					if point.this.x == point.linked.x {
-						var goingDown bool
-						if point.this.y < point.linked.y {
-							goingDown = true
-						}
-						for i := range intAbs(point.this.y - point.linked.y) {
-							if goingDown {
-								borderMap[y+i][x] = "|"
-							} else {
-								borderMap[y-i][x] = "|"
-							}
-						}
-					} else {
-						var goingRight bool
-						if point.this.x < point.linked.x {
-							goingRight = true
-						}
-						for i := range intAbs(point.this.x - point.linked.x) {
-							if goingRight {
-								borderMap[y][x+i] = "-"
-							} else {
-								borderMap[y][x-i] = "-"
-							}
-						}
-					}
-					borderMap[y][x] = "@"
+	slices.SortFunc(verticallyJoinedPoints, func(a, b linkedPos) int {
+		if a.this.x < b.this.x {
+			return -1
+		} else {
+			return 1
+		}
+	})
+
+	maxArea := 0
+	for i, point := range points[:len(points)-1] {
+		for _, oppositePoint := range points[i+1:] {
+			if point.this.x == oppositePoint.this.x || point.this.y == oppositePoint.this.y {
+				continue
+			}
+			upperLeft := pos{intMin(point.this.x, oppositePoint.this.x), intMin(point.this.y, oppositePoint.this.y)}
+			lowerRight := pos{intMax(point.this.x, oppositePoint.this.x), intMax(point.this.y, oppositePoint.this.y)}
+			middle := pos{(lowerRight.x - upperLeft.x) / 2, (lowerRight.y - upperLeft.y) / 2}
+			area := (intAbs(point.this.x-oppositePoint.this.x) + 1) * (intAbs(point.this.y-oppositePoint.this.y) + 1)
+			nothingInside := true
+			for _, p := range points {
+				if p.this.x > upperLeft.x && p.this.y > upperLeft.y && p.this.x < lowerRight.x && p.this.y < lowerRight.y {
+					nothingInside = false
+					break
 				}
 			}
-			if borderMap[y][x] == "" {
-				borderMap[y][x] = "."
+			if !nothingInside {
+				continue
+			}
+			isInsideVerticalUpperLeft := false
+			isInsideVerticalLowerLeft := false
+			isInsideVerticalUpperRight := false
+			isInsideVerticalLowerRight := false
+			isInsideMiddle := false
+			for _, vPair := range verticallyJoinedPoints {
+				if vPair.this.x > upperLeft.x+1 {
+					if intMin(vPair.this.y, vPair.linked.y) <= upperLeft.y+1 && intMax(vPair.this.y, vPair.linked.y) >= upperLeft.y+1 {
+						isInsideVerticalUpperLeft = !isInsideVerticalUpperLeft
+					}
+					if intMin(vPair.this.y, vPair.linked.y) <= lowerRight.y-1 && intMax(vPair.this.y, vPair.linked.y) >= lowerRight.y-1 {
+						isInsideVerticalLowerLeft = !isInsideVerticalLowerLeft
+					}
+				}
+				if vPair.this.x > lowerRight.x-1 {
+					if intMin(vPair.this.y, vPair.linked.y) <= upperLeft.y+1 && intMax(vPair.this.y, vPair.linked.y) >= upperLeft.y+1 {
+						isInsideVerticalUpperRight = !isInsideVerticalUpperRight
+					}
+					if intMin(vPair.this.y, vPair.linked.y) <= lowerRight.y-1 && intMax(vPair.this.y, vPair.linked.y) >= lowerRight.y-1 {
+						isInsideVerticalLowerRight = !isInsideVerticalLowerRight
+					}
+				}
+				if vPair.this.x > middle.x {
+					if intMin(vPair.this.y, vPair.linked.y) <= middle.y && intMax(vPair.this.y, vPair.linked.y) >= middle.y {
+						isInsideMiddle = !isInsideMiddle
+					}
+				}
+
+			}
+			if isInsideVerticalUpperLeft && isInsideVerticalLowerLeft && isInsideVerticalUpperRight && isInsideVerticalLowerRight && isInsideMiddle && area > maxArea {
+				fmt.Println(point)
+				fmt.Println(oppositePoint)
+				maxArea = area
 			}
 		}
+
 	}
 
-	for _, row := range borderMap {
-		fmt.Println(row)
-	}
-
-	// biggestArea := 0
-
-	// for i, point := range points[:len(points)-1] {
-	// 	for _, oppositePoint := range points[i+1:] {
-	// 		area := intAbs(point.this.x-oppositePoint.this.x) * intAbs(point.this.y-oppositePoint.this.y)
-	// 		if area > biggestArea {
-	// 			inside := rayTrace(borderMap, point, oppositePoint)
-	// 			if inside {
-	// 				biggestArea = area
-	// 			}
-	// 		}
-	// 	}
-	// }
-	// fmt.Println(biggestArea)
+	fmt.Println(maxArea)
 }
 
 func rayTrace(borderMap [][]string, cornerOne, cornerTwo linkedPos) bool {
